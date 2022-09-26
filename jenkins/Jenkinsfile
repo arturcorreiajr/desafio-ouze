@@ -4,7 +4,8 @@ pipeline{
     stages{
         stage('Build Backend'){
             steps{
-                sh 'cd .. && cd ./tasks-backend/'
+                sh 'cd .. ' 
+                sh 'cd ./tasks-backend/'
                 sh 'mvn clean package -DskipTests=true'
             }
         }
