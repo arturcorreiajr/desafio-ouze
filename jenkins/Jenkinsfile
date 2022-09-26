@@ -2,61 +2,63 @@ pipeline{
     agent any
 
     stages {
+        // Repositório onde o jenkins vai baixar os fontes do projejo na branch 'develop'
         stage('Get Source'){
             steps{
-                git url: 'https://github.com/arturcorreiajr/desafio-ouze.git', branch: 'main'
+                git url: 'https://github.com/arturcorreiajr/desafio-ouze.git', branch: 'develop'
             }
 
         }
-        stage('Docker Build API1'){
+        // Construção da aplicação tasks-backend  (criação do arquivo .war do projeto)
+        stage('Build Backend'){
             steps{
                 script {
-                    dockerapp = docker.build("arturcorreiajunior/api1:${env.BUILD_ID}", '-f ./api1/Dockerfile .')
+                    sh 'cd ..'
+                    sh 'cd ./tasks-backend'
+                    sh 'mvn clean package -DskipTests-true'
                 }
             }
         }
+        // Aplicação de testes unitários do projeto criado no passo anterior
+        stage("Unit tests") {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
         stage('Anchore analyse') {
             steps {
                 writeFile file: 'anchore_images', text: "arturcorreiajunior/api1:${env.BUILD_ID}"
                 anchore name: 'anchore_images'
             }
         }
+
         stage('SonarQube analysis') {
             environment{
                 scannerHome = tool 'SONAR_SCANNER'
             }
             steps {
+                // SONAR_LOCAL nome da instalação do sonnar no jenkins para análize posterior do Quality gate
                 withSonarQubeEnv('SONAR_LOCAL') {
-                    sh 'mvn sonar:sonar -Dsonar.dependencyCheck.jsonReportPath=target/dependency-check-report.json -Dsonar.dependencyCheck.xmlReportPath=target/dependency-check-report.xml -Dsonar.dependencyCheck.htmlReportPath=target/dependency-check-report.html -Dsonar.java.pmd.reportPaths=target/pmd.xml -Dsonar.java.spotbugs.reportPaths=target/spotbugsXml.xml -Dsonar.zaproxy.reportPath=target/zap-reports/zapReport.xml -Dsonar.zaproxy.htmlReportPath=target/zap-reports/zapReport.html'
+                    sh "${scannerHome}/bin/sonar-scanner -e -Dsonar.projectKey=DeployBack -Dsonar.host.url=http://localhost:9000 -Dsonar.login=hwt6h5w6t5h98th2h6w5th9w484265 -Dsonar.java.binaries=target -Dsonar.coverage.exclusions=**/.mvn/**.**/src/test/**,**/model/**,**Application.java"   
                 }
             }
         }
 
-        stage("Quality gate") {
+        // Análize do Quality Gate
+        stage("Quality Gate") {
             steps {
-                sh 'sleep 10'
+                sleep(10)
+                timeout(time: 1, unit: 'MINUTES')
                 waitForQualityGate abortPipeline: true
             }
         }
-    }
-        stage('Docker Push API1'){
-            steps{
-                script {
-                        docker.withRegistry('http://registry.hub.docker.com', 'github-token-jenkins'){
-                        dockerapp.push('latest')
-                        dockerapp.push("${env.BUILD_ID}")
-                }
-                }
-            }
-        }
+    
 
-        stage('Deploy docker'){
+        // Faz o deploy da aplicação gerada nos estágios anteriores no Tomcat
+        stage('Deploy'){
             steps{
-                script {
-                    echo "arturcorreiajunior/api1:${env.BUILD_ID}"
-                    sh "docker stop api1 || true && docker rm api1 || true"
-                    sh "docker run --name api1 -d -p 8080:80 arturcorreiajunior/api1:${env.BUILD_ID}"
-                }
+                deploy adapters: [tomcat8(credentialsId: 'TomcatLogin', path:'', url: 'http://localhost:8001/')], contextPath: 'tasks-backend', war: 'target/tasks-backend.war'
             }
         }
 
