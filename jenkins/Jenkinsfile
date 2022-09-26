@@ -15,6 +15,30 @@ pipeline{
                 }
             }
         }
+        stage('Anchore analyse') {
+            steps {
+                writeFile file: 'anchore_images', text: "arturcorreiajunior/api1:${env.BUILD_ID}"
+                anchore name: 'anchore_images'
+            }
+        }
+        stage('SonarQube analysis') {
+            environment{
+                scannerHome = tool 'SONAR_SCANNER'
+            }
+            steps {
+                withSonarQubeEnv('SONAR_LOCAL') {
+                    sh 'mvn sonar:sonar -Dsonar.dependencyCheck.jsonReportPath=target/dependency-check-report.json -Dsonar.dependencyCheck.xmlReportPath=target/dependency-check-report.xml -Dsonar.dependencyCheck.htmlReportPath=target/dependency-check-report.html -Dsonar.java.pmd.reportPaths=target/pmd.xml -Dsonar.java.spotbugs.reportPaths=target/spotbugsXml.xml -Dsonar.zaproxy.reportPath=target/zap-reports/zapReport.xml -Dsonar.zaproxy.htmlReportPath=target/zap-reports/zapReport.html'
+                }
+            }
+        }
+
+        stage("Quality gate") {
+            steps {
+                sh 'sleep 10'
+                waitForQualityGate abortPipeline: true
+            }
+        }
+    }
         stage('Docker Push API1'){
             steps{
                 script {
