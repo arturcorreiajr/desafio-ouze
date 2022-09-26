@@ -1,12 +1,35 @@
 pipeline{
     agent any
 
+    tools {
+        jdk 'jdk-18'
+        maven 'mvn-3.6.3'
+    }
+
     stages{
         stage('Build Backend'){
             steps{
-                sh 'cd .. ' 
-                sh 'cd ./tasks-backend/'
-                sh 'mvn clean package -DskipTests=true'
+                withMaven(maven: 'mvn-3.6.3') {
+                    sh 'cd .. ' 
+                    sh 'cd ./tasks-backend/'
+                    sh 'mvn clean package -DskipTests=true'
+                }
+            }
+
+        }
+        stage('Unit Tests'){
+            steps{
+                sh 'mvn test' 
+            }
+        }
+        stage('Sonar Análises'){
+            environment{
+                scannerHome = tool 'SONAR_SCANNER'
+            }
+            steps{
+                withSonarQubeEnv('SONAR_LOCAL'){
+                    sh "${scannerHome}/bin/sonar-scanner -e -Dsonar.projectkey=DeployBack  -Dsonar.host.url=http://localhost:9000 -Dsonar.login=cf6826d57sd54t5w6thw6t6wt5h6w5th15wt1 -Dsonar.java.binaries=target -Dsonar.coverage.exclusions=**/.mvn/**,**/src/test/**model/**,**Application.java"
+                }
             }
         }
     }
