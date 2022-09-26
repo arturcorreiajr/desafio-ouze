@@ -4,7 +4,7 @@ pipeline{
     stages {
         stage('Get Source'){
             steps{
-                git url: 'https://github.com/arturcorreiajr/nginx-node-redis.git', branch: 'main'
+                git url: 'https://github.com/arturcorreiajr/desafio-ouze.git', branch: 'main'
             }
 
         }
@@ -25,27 +25,13 @@ pipeline{
                 }
             }
         }
-        stage('Docker Build API2'){
+
+        stage('Deploy docker'){
             steps{
                 script {
-                    dockerapp = docker.build("arturcorreiajunior/api2:${env.BUILD_ID}", '-f ./api2/Dockerfile .')
-                }
-            }
-        }
-        stage('Docker Push API2'){
-            steps{
-                script {
-                        docker.withRegistry('http://registry.hub.docker.com', 'github-token-jenkins'){
-                        dockerapp.push('latest')
-                        dockerapp.push("${env.BUILD_ID}")
-                    }
-                }
-            }
-        }
-        stage('Deploy Kubernetes'){
-            steps{
-                script {
-                    sh "kubectl apply -f .k8s/server-deploy.yaml"
+                    echo "arturcorreiajunior/api1:${env.BUILD_ID}"
+                    sh "docker stop api1 || true && docker rm api1 || true"
+                    sh "docker run --name api1 -d -p 8080:80 arturcorreiajunior/api1:${env.BUILD_ID}"
                 }
             }
         }
